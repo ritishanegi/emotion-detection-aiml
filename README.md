@@ -165,16 +165,16 @@ Performance varies by target category and evaluation dataset. Refer to [`results
 - Model predictions may be affected by bias, context, sarcasm, and differences in writing style.
 - Classification results must not be treated as clinical diagnoses or used as a substitute for professional support.
 
-## 👩‍💻 Author
+## 🙏 Inspiration & Acknowledgements
 
-**Ritisha Negi**
+This project was inspired by an existing project in the field of AI/ML and mental health-related text analysis. We used the original work as a reference and made our own modifications, improvements, and adaptations to suit our project objectives.
 
-GitHub: [@ritishanegi](https://github.com/ritishanegi)
+We would like to acknowledge the original creator for providing inspiration and a foundation for our work.
 
-## 📄 License
+**Original Project:** https://github.com/danielmlow/reddit
 
-This project includes an Apache-2.0 license. Refer to the [`LICENSE`](LICENSE) file for the applicable terms.
+## 🛠️ Our Contributions
 
----
+Building upon the inspiration from the original work, we made changes to develop our own implementation. These changes may include modifications to the data processing pipeline, model implementation, experiments, evaluation methods, and project structure.
 
-⭐ If you find this project interesting, consider starring the repository and exploring the notebooks.
+Our goal was to understand the existing approach, adapt it, and extend it through our own implementation and experimentation.
