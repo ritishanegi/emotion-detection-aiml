@@ -17,96 +17,91 @@ import matplotlib.pyplot as plt
 pd.options.display.width = 0
 
 def summarize(input_dir, test_set='', model=0, model_name='SGDClassifier'):
-	output_dir = input_dir + 'summary_model{}/'.format(model)
+	output_dir = os.path.join(input_dir, f'summary_model{model}/')
+	os.makedirs(output_dir, exist_ok=True)
 
-	try:
-		os.mkdir(output_dir )
-	except: pass
 	dirs = os.listdir(input_dir)
-	dirs = [n for n in dirs if 'model{}'.format(model) in n]
+	dirs = [n for n in dirs if f'model{model}' in n]
 
 	results = []
 	coefs_all = []
-	for dir in dirs:
-		if '.DS_Store' in dir or 'summary' in dir:
+	for dir_name in dirs:
+		if '.DS_Store' in dir_name or 'summary' in dir_name:
 			continue
-		subreddit = dir.split('_')[-1]
-		result = np.round(pd.read_csv(input_dir + dir + '/report_{}{}.csv'.format(model_name, test_set))['f1-score'][4], 3)
+		report_file = os.path.join(input_dir, dir_name, f'report_{model_name}{test_set}.csv')
+		if not os.path.isfile(report_file):
+			continue
+		subreddit = dir_name.split('_')[-1]
+		df_report = pd.read_csv(report_file, index_col=0)
+		if 'weighted avg' in df_report.index:
+			result = np.round(df_report.loc['weighted avg', 'f1-score'], 3)
+		else:
+			result = np.round(df_report.iloc[-1]['f1-score'], 3)
 		results.append([subreddit, result])
 
 		if model_name in ['SGDClassifier', 'SVC']:
-			coefs = pd.read_csv(input_dir + dir + '/coefs_df_{}{}.csv'.format(model_name, test_set),
-								index_col=0).sort_values(subreddit)
-			# Select only positive
+			coef_file = os.path.join(input_dir, dir_name, f'coefs_df_{model_name}{test_set}.csv')
+			if os.path.isfile(coef_file):
+				coefs = pd.read_csv(coef_file, index_col=0)
+				if subreddit in coefs.columns:
+					coefs = coefs.sort_values(subreddit)
+					coefs = coefs[coefs[subreddit] > 0]
+					coefs.columns = ['coefficients']
+					coefs['subreddit'] = [subreddit] * coefs.shape[0]
+					coefs_all.append(coefs)
 
-			coefs = coefs[coefs[subreddit]>0]
-			coefs.columns = ['coefficients']
-			coefs['subreddit'] = [subreddit] * coefs.shape[0]
-			coefs_all.append(coefs)
+					with open(os.path.join(output_dir, f'summary{test_set}.txt'), 'a+') as f:
+						f.write('\n')
+						f.write(str(coefs))
+						f.write('\n')
 
-
-			with open(output_dir+ 'summary{}.txt'.format(test_set), 'a+') as f:
-				f.write('\n')
-				f.write(str(coefs))
-				f.write('\n')
-
-
-	if model_name in ['SGDClassifier', 'SVC']:
+	if (model_name in ['SGDClassifier', 'SVC']) and len(coefs_all) > 0:
 		coefs_all2 = pd.concat(coefs_all, axis=0)
-		coefs_all2.to_csv(output_dir + 'summary_coefs{}.csv'.format(test_set))
+		coefs_all2.to_csv(os.path.join(output_dir, f'summary_coefs{test_set}.csv'))
 
-	results = pd.DataFrame(results)
-	results.columns = ['subreddit', 'Weighted F1']
-	results = results.sort_values('subreddit')
-	results.to_csv(output_dir+ 'summary_results{}.csv'.format(test_set))
-	with open(output_dir+ 'summary{}.txt'.format(test_set), 'a+') as f:
-		f.write('\n')
-		f.write(results.to_latex())
-		f.write('\n')
-
-
+	results = pd.DataFrame(results, columns=['subreddit', 'Weighted F1']) if results else pd.DataFrame(columns=['subreddit', 'Weighted F1'])
+	if not results.empty:
+		results = results.sort_values('subreddit')
+		results.to_csv(os.path.join(output_dir, f'summary_results{test_set}.csv'), index=False)
+		with open(os.path.join(output_dir, f'summary{test_set}.txt'), 'a+') as f:
+			f.write('\n')
+			try:
+				f.write(results.to_latex())
+			except Exception:
+				f.write(results.to_string())
+			f.write('\n')
 
 	return results
 
 
-def psych_profiler(input_dir, test_set='_covid19', model=0,model_name='SGDClassifier', plot=False):
-	output_dir = input_dir + 'summary_model{}/'.format(model)
-	try:
-		os.mkdir(output_dir)
-	except:
-		pass
+def psych_profiler(input_dir, test_set='_covid19', model=0, model_name='SGDClassifier', plot=False):
+	output_dir = os.path.join(input_dir, f'summary_model{model}/')
+	os.makedirs(output_dir, exist_ok=True)
+
 	dirs = os.listdir(input_dir)
 	proportion_classified_as_sr = []
 
-	for dir in dirs:
-		if dir in ['.DS_Store', 'summary'] or '.' in dir or 'summary' in dir:
+	for dir_name in dirs:
+		if dir_name in ['.DS_Store', 'summary'] or '.' in dir_name or 'summary' in dir_name:
 			continue
-		subreddit = dir.split('_')[-1]
-
-		# 'coefs_df_SGDClassifier_covid19.csv'
-
-		y_pred_probs = pd.read_csv(input_dir + dir + '/y_pred_probs_{}{}.csv'.format(model_name,test_set))
-
-		# Take the mean prob for this subreddit
-		# mean_probs = y_pred_probs.mean()[subreddit]
-		# mean_probs_all.append([subreddit, mean_probs])
-
-		# What percent of posts are classified as subreddit?
+		prob_file = os.path.join(input_dir, dir_name, f'y_pred_probs_{model_name}{test_set}.csv')
+		if not os.path.isfile(prob_file):
+			continue
+		subreddit = dir_name.split('_')[-1]
+		y_pred_probs = pd.read_csv(prob_file)
+		if subreddit not in y_pred_probs.columns:
+			continue
 		y_pred_probs_sr = y_pred_probs[subreddit].values
-		# Here I use 0.5 cutoff but other could be used.
-		y_pred_proportion = np.sum(np.round(y_pred_probs_sr))/len(y_pred_probs_sr)
+		y_pred_proportion = np.sum(np.round(y_pred_probs_sr)) / len(y_pred_probs_sr)
 		proportion_classified_as_sr.append([subreddit, y_pred_proportion, y_pred_probs_sr])
 
 	df = pd.DataFrame(proportion_classified_as_sr).round(2)
-
-	df.columns = ['subreddit', 'predicted', 'y_pred_probs_sr']
-	df = df.sort_values('predicted')[::-1]
-	df = df.rename(columns={'predicted': 'Predicted from\nCOVID19_support'})
-
-	df.set_index('subreddit', inplace=True)
-
-	# csv
-	df.to_csv(output_dir + 'psych_profiler{}.csv'.format(test_set))
+	if not df.empty:
+		df.columns = ['subreddit', 'predicted', 'y_pred_probs_sr']
+		df = df.sort_values('predicted')[::-1]
+		df = df.rename(columns={'predicted': 'Predicted from\nCOVID19_support'})
+		df.set_index('subreddit', inplace=True)
+		df.to_csv(os.path.join(output_dir, f'psych_profiler{test_set}.csv'))
 	# heatmap
 
 	if plot:
@@ -131,10 +126,10 @@ if __name__ == "__main__":
 
 	# Change path and model used for subsequent analyses. binary8 is where I put all results, 8 means 8th version of dataset
 	version = 8
-	input_dir = f'./../../datum/reddit/output/classification/binary{version}/'
+	input_dir = r'C:\Users\Sonu\datum\reddit\output' + '\\'
 	# Change path for chosen model (SGD L1 in our case) for subsequent analysis
 	chosen_model = 0
-	input_dir_1model = f'./../../datum/reddit/output/classification/binary{version}_model{chosen_model}/'
+	input_dir_1model = r'C:\Users\Sonu\datum\reddit\output\binary{}_model{}\\'.format(version, chosen_model)
 	try: os.mkdir(input_dir_1model)
 	except: pass
 	
@@ -198,17 +193,17 @@ if __name__ == "__main__":
 	cols = cols[-1:] + cols[:-1]
 	results_mean= results_mean[cols]
 	results_mean=results_mean.round(3)
-	results_all_models = results_all_models.append(results_mean, ignore_index=True)
+	results_all_models = pd.concat([results_all_models, results_mean], ignore_index=True)
 
 	# Nonzero coefs
 	results_coefs = pd.DataFrame(nonzero_coefs_all).T
-	results_coefs['subreddit'] = 'Model complexity No. (\%)'
+	results_coefs['subreddit'] = r'Model complexity No. (\%)'
 	cols = results_coefs.columns.tolist()
 	cols = cols[-1:] + cols[:-1]
 
 	results_coefs = results_coefs[cols]
 	results_coefs.columns = results_all_models.columns
-	results_all_models = results_all_models.append(results_coefs, ignore_index=True)
+	results_all_models = pd.concat([results_all_models, results_coefs], ignore_index=True)
 
 	# Format
 	results_all_models.set_index('subreddit', inplace=True)
@@ -263,7 +258,7 @@ if __name__ == "__main__":
 	results_mean = pd.DataFrame(results.mean()).T
 	results_mean['subreddit'] = ['Mean']
 	cols = results_mean.columns.tolist()
-	results= results.append(results_mean, ignore_index=True)
+	results= pd.concat([results, results_mean], ignore_index=True)
 	results.set_index('subreddit', inplace=True)
 	results= results[['F1 pre', 'F1 mid', 'Change']]
 	results = results.round(3)

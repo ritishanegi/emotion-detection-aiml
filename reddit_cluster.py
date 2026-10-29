@@ -52,25 +52,13 @@ pre_or_post = 'pre'
 plot=False
 
 timestamp = datetime.today().strftime('%Y-%m-%d-%H-%M')
-# data_folder = '/content/drive/My Drive/ML4HC_Final_Project/data/input/'
 data_folder = './../../datum/reddit/input/reddit_mental_health_dataset/'
+if not os.path.exists(data_folder):
+	data_folder = './input/reddit_mental_health_dataset/'
 output_dir = f'./../../datum/reddit/output/supervised_umap/umap_cluster_{pre_or_post}_{timestamp}/'
 print(output_dir)
 
-
-# In[48]:
-
-
-# # # Mount GDrive and attach it to the colab for data I/O
-# from google.colab import drive
-# drive.mount('/content/drive')
-
-
-# In[49]:
-
-
-try: os.mkdir(output_dir)
-except: pass
+os.makedirs(output_dir, exist_ok=True)
 
 
 # In[50]:
@@ -94,7 +82,7 @@ if args.plot!=None:
 if args.toy!=None:
 	toy = str2boolean(args.toy)
 
-if args.toy!=None:
+if args.pre_or_post!=None:
 	pre_or_post = str(args.pre_or_post)
 
     
@@ -105,10 +93,14 @@ if args.toy!=None:
 
 
 seed_value = None
-# silence NumbaPerformanceWarning
 import warnings
-import numba
-from numba.errors import NumbaPerformanceWarning
+try:
+	from numba.core.errors import NumbaPerformanceWarning
+except ImportError:
+	try:
+		from numba.errors import NumbaPerformanceWarning
+	except ImportError:
+		NumbaPerformanceWarning = Warning
 
 warnings.filterwarnings("ignore", category=NumbaPerformanceWarning)
 
@@ -276,6 +268,7 @@ def gridsearch_sets(metrics, n_neighbors, min_dist, n_dimensions, scalers, repea
 def subsample_df(df, subsample):
 	if type(subsample) == float:
 		subsample = int(df.shape[0]*subsample)
+	subsample = min(subsample, df.shape[0])
 	df = df.reset_index(drop=True)
 	df2 = df.loc[np.random.choice(df.index,subsample, replace=False)]
 	return df2
@@ -506,7 +499,7 @@ results_gs = pd.DataFrame(results_i)
 results_gs.columns = ['metric', 'neighbor','dist', 'sil_score','convexhull']
 results_gs = results_gs.sort_values('sil_score')
 # results[name] = results_gs
-timestamp = datetime.now().isoformat()
+timestamp = datetime.now().strftime('%Y-%m-%d-%H-%M-%S')
 results_gs.to_csv(output_dir+f'run_{name}_umap_gs_params_scores_{timestamp}.csv')
 # euclidean
 results_gs_dists = pd.concat(results_i_dists)

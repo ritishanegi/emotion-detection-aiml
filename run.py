@@ -19,7 +19,7 @@ import switcher
 import umap
 # Local scripts
 # Clone catpro from https://github.com/danielmlow/catpro/
-sys.path.append('./../../catpro') #Change dir to cloned dir
+sys.path.extend(['.', './catpro', '../catpro', './../../catpro']) #Change dir to cloned dir
 from catpro.preprocessing_text import extract_features
 from catpro import data_helpers
 import config_parameters
@@ -57,7 +57,7 @@ def final_model(X_train, y_train, X_test, y_test,run_modelN, subreddit, subreddi
 	pipeline.fit(X_train, y_train)
 	y_pred = pipeline.predict(X_test)
 	# Evaluate
-	report = classification_report(y_test, y_pred, target_names=subreddits, output_dict=True)
+	report = classification_report(y_test, y_pred, labels=list(range(len(subreddits))), target_names=subreddits, output_dict=True, zero_division=0)
 	df = pd.DataFrame(report).transpose()
 
 	model_name = str(pipeline['clf']).split('(')[0]
@@ -67,9 +67,12 @@ def final_model(X_train, y_train, X_test, y_test,run_modelN, subreddit, subreddi
 		model_name += '_'+append_to_name
 
 	df.to_csv(output_dir + 'report_{}.csv'.format(model_name), index_label=0)
-	df.to_latex(output_dir + 'report_latex_{}'.format(model_name))
+	try:
+		df.to_latex(output_dir + 'report_latex_{}'.format(model_name))
+	except Exception:
+		pass
 
-	if 'SVC' in model_name or 'SVM' in model_name or 'SGD' in model_name:
+	if hasattr(pipeline['clf'], 'coef_'):
 		coefs = pipeline['clf'].coef_
 		coefs_df = pd.DataFrame(coefs).T
 		# coefs_df = pd.concat([pd.DataFrame(features), pd.DataFrame(np.transpose(coefs))], axis=1)
@@ -77,7 +80,13 @@ def final_model(X_train, y_train, X_test, y_test,run_modelN, subreddit, subreddi
 			coefs_df.columns = [subreddit]
 		else:
 			coefs_df.columns = subreddits
-		coefs_df.index = features
+		if 'feature_selection' in pipeline.named_steps and hasattr(pipeline['feature_selection'], 'get_support'):
+			support = pipeline['feature_selection'].get_support(indices=True)
+			feat_names = [features[i] for i in support]
+		else:
+			feat_names = features
+		if len(feat_names) == coefs_df.shape[0]:
+			coefs_df.index = feat_names
 		coefs_df.to_csv(output_dir + 'coefs_df_{}.csv'.format(model_name))
 
 
@@ -94,13 +103,17 @@ def final_model(X_train, y_train, X_test, y_test,run_modelN, subreddit, subreddi
 					f.write(str(coef_sr[sr].iloc[:10]))
 
 
-		y_pred_probs = pipeline.predict_proba(X_test)
-		y_pred_probs = pd.DataFrame(y_pred_probs)
-		y_pred_probs.columns = subreddits
-		y_pred_probs.to_csv(output_dir + 'y_pred_probs_{}.csv'.format(model_name), index=None)
+	if hasattr(pipeline, 'predict_proba'):
+		try:
+			y_pred_probs = pipeline.predict_proba(X_test)
+			y_pred_probs = pd.DataFrame(y_pred_probs)
+			y_pred_probs.columns = subreddits
+			y_pred_probs.to_csv(output_dir + 'y_pred_probs_{}.csv'.format(model_name), index=None)
+		except Exception:
+			pass
 
 
-	cm = confusion_matrix(y_test, y_pred, labels=np.unique(y_test), sample_weight=None)
+	cm = confusion_matrix(y_test, y_pred, labels=list(range(len(subreddits))), sample_weight=None)
 
 	pd.DataFrame(cm).to_csv(output_dir + 'confusion_matrix_{}.csv'.format(model_name))
 	# plot_outputs.plot_confusion_matrix(cm, subreddits, normalize=True, save_to=output_dir + 'confusion_matrix.png')
@@ -137,56 +150,48 @@ def df_to_X(reddit_data, task='binary'):
 
 	X, y, docs_all = list_of_list_to_array(X),list_of_list_to_array(y),list_of_list_to_array(docs_all)
 
-	# Make sure 'control' is always 0
-	try:
-		y = np.array([n.replace('control', '0') for n in y])
-	except: pass
-	le = preprocessing.LabelEncoder()
-	y_encoded = le.fit_transform(y)
+	# Make sure 'control' is always 0 for binary classification
+	if task == 'binary':
+		y_encoded = np.array([0 if str(n).lower() in ['control', '0'] else 1 for n in y])
+	else:
+		le = preprocessing.LabelEncoder()
+		y_encoded = le.fit_transform(y)
 
 	# Split
-	X_train, X_test, y_train, y_test, docs_train, docs_test  = train_test_split(X, y_encoded, docs_all,test_size=0.20, random_state=seed_value)
+	X_train, X_test, y_train, y_test, docs_train, docs_test = train_test_split(X, y_encoded, docs_all, test_size=0.20, random_state=seed_value)
 	return X_train, X_test, y_train, y_test, docs_train, docs_test, features
 
 
-def df_to_X_midpandemic(df, timestep = None,filter_days = ['2020/03/11', '2020/04/20'], subreddit = 'COVID19_support'):
-
-
+def df_to_X_midpandemic(df, timestep=None, filter_days=['2020/03/11', '2020/04/20'], subreddit='COVID19_support'):
 	features = list(df.columns)
 	features = [n for n in features if n not in ['subreddit', 'author', 'date', 'post']]
 
 	if filter_days:
-		df.date = df.date.replace({'/': '-'}, regex=True)
-
-		start_date = filter_days[0].replace('/','-')
+		df = df.copy()
+		df['date'] = df['date'].astype(str).str.replace('/', '-', regex=False)
+		start_date = filter_days[0].replace('/', '-')
 		end_date = filter_days[1].replace('/', '-')
-		df = df[(df['date'] > start_date ) & (df['date'] < end_date )]
+		df_filtered = df[(df['date'] >= start_date) & (df['date'] <= end_date)]
+		if len(df_filtered) > 0:
+			df = df_filtered
 
-	df_sr = df[df.subreddit == subreddit]
-	df_control = df[df.subreddit != subreddit]
-	df_control = load_reddit.subsample_df(df_control,df_sr.shape[0])
-	df_control.subreddit = 'control'
+	df_sr = df[df.subreddit == subreddit].copy()
+	df_control = df[df.subreddit != subreddit].copy()
+	if df_sr.shape[0] > 0 and df_control.shape[0] > 0:
+		df_control = load_reddit.subsample_df(df_control, df_sr.shape[0])
+	df_control['subreddit'] = 'control'
 
-	df_sr = pd.concat([df_sr,df_control])
+	df_combined = pd.concat([df_sr, df_control], ignore_index=True)
 
-	X_test_sr = df_sr[features].values
-	y_test_sr = list(df_sr .subreddit)
-	docs_test_sr = list(df_sr ['post'])
-	docs_test_sr = [post.replace('\n\n', ' ').replace('  ', ' ').replace('“', '').replace('”', '') for post in
-	                docs_test_sr]  # here I remove paragraph split, double spaces and some other weird stuff, this should be done once for all posts\n",
+	X_test_sr = df_combined[features].values
+	y_test_sr = list(df_combined.subreddit)
+	docs_test_sr = list(df_combined['post'])
+	docs_test_sr = [post.replace('\n\n', ' ').replace('  ', ' ').replace('“', '').replace('”', '') for post in docs_test_sr]
 
-	le = preprocessing.LabelEncoder()
-
-	# Make sure 'control' is always 0
-	try:
-		y_test_sr  = np.array([n.replace('control', '0') for n in y_test_sr ])
-	except: pass
-
-	y_test_sr = le.fit_transform(y_test_sr )
-
+	# Make sure 'control' is always 0 and target subreddit is 1
+	y_test_sr = np.array([0 if str(n).lower() in ['control', '0'] else 1 for n in y_test_sr])
 
 	if timestep:
-		# todo
 		days = np.unique(df.date)
 		days_timestep = days[::timestep]
 		X = []
@@ -199,9 +204,6 @@ def df_to_X_midpandemic(df, timestep = None,filter_days = ['2020/03/11', '2020/0
 			X.append(df_week_feature_cols)
 			y.append(df_week_y)
 
-
-	if [0] == list(np.unique(y_test_sr)):
-		y_test_sr = [1]*len(y_test_sr)
 	return X_test_sr, y_test_sr, docs_test_sr
 
 

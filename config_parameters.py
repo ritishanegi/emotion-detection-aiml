@@ -9,7 +9,7 @@ import numpy as np
 from sklearn.svm import SVC
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from sklearn.ensemble import ExtraTreesClassifier
-from xgboost.sklearn import XGBModel
+from xgboost import XGBModel
 from sklearn.neural_network import MLPClassifier
 from sklearn.linear_model import SGDClassifier
 from sklearn.feature_selection import SelectKBest
@@ -33,7 +33,7 @@ def parameters_all_models(y, dim_reduction):
 				'umap__n_components': k,
 				'umap__n_neighbors': n_neighbors,
 				'clf__estimator__penalty': ('l2', 'elasticnet', 'l1'),
-				'clf__estimator__loss': ['hinge', 'log'],
+				'clf__estimator__loss': ['hinge', 'log_loss'],
 			},
 			{
 				'clf__estimator': [SVC(probability=False)],
@@ -45,7 +45,7 @@ def parameters_all_models(y, dim_reduction):
 			},
 			{
 				'clf__estimator': [
-					XGBModel(objective='multi:softmax', num_class=n_classes, max_features='auto', n_jobs=-1)],
+					XGBModel(objective='multi:softmax', num_class=n_classes, n_jobs=-1)],
 				'normalization': normalization_std,
 				'clf__estimator__n_estimators': (32, 128),
 				'clf__estimator__max_depth': (32, 64, 128),
@@ -54,7 +54,7 @@ def parameters_all_models(y, dim_reduction):
 				'umap__n_neighbors': n_neighbors,
 			},
 			{
-				'clf__estimator': [ExtraTreesClassifier(max_features='auto', n_jobs=-1)],
+				'clf__estimator': [ExtraTreesClassifier(max_features='sqrt', n_jobs=-1)],
 				'normalization': normalization_std,
 				'clf__estimator__n_estimators': (32, 128),
 				'clf__estimator__max_depth': (32, 64, 128),
@@ -87,7 +87,7 @@ def parameters_all_models(y, dim_reduction):
 				'normalization': (normalization_both),
 				'feature_selection__k': k,
 				'clf__estimator__penalty': ('l2', 'elasticnet', 'l1'),
-				'clf__estimator__loss': ['hinge','log'],
+				'clf__estimator__loss': ['hinge','log_loss'],
 			},
 			{
 				'clf__estimator': [SVC(probability=False)],
@@ -97,7 +97,7 @@ def parameters_all_models(y, dim_reduction):
 				'feature_selection__k': k,
 			},
 			{
-				'clf__estimator': [XGBModel(objective='multi:softmax', num_class=n_classes, max_features='auto', n_jobs=-1)],
+				'clf__estimator': [XGBModel(objective='multi:softmax', num_class=n_classes, n_jobs=-1)],
 				'normalization': normalization_std,
 				'clf__estimator__n_estimators': (32, 128),
 				'clf__estimator__max_depth': (32, 64, 128),
@@ -105,7 +105,7 @@ def parameters_all_models(y, dim_reduction):
 				'feature_selection__k': k,
 			},
 			{
-				'clf__estimator': [ExtraTreesClassifier(max_features='auto', n_jobs=-1)],
+				'clf__estimator': [ExtraTreesClassifier(max_features='sqrt', n_jobs=-1)],
 				'normalization': normalization_std,
 				'clf__estimator__n_estimators': (32,128),
 				'clf__estimator__max_depth':(32, 64, 128),
@@ -139,7 +139,7 @@ def parameters_all_models_final(y, dim_reduction):
 			'normalization': MinMaxScaler(),
 			'feature_selection__k': 'all',
 			'clf__estimator__penalty': 'l1',
-			'clf__estimator__loss': 'log',
+			'clf__estimator__loss': 'log_loss',
 		},
 		{
 			'clf__estimator': [SVC(kernel='rbf', probability=False)],
@@ -184,12 +184,12 @@ def final_pipeline(run_modelN):
 	if run_modelN == 0:
 		k = 'all'
 		scaler = MinMaxScaler()
-		clf = SGDClassifier(early_stopping=True, max_iter=5000, penalty='l1', loss='log')
+		clf = SGDClassifier(early_stopping=True, max_iter=5000, penalty='l1', loss='log_loss', alpha=0.001, random_state=42)
 
 	if run_modelN == 1:
 		k = 'all'
 		scaler = MinMaxScaler()
-		clf = SGDClassifier(early_stopping=True, max_iter=5000, penalty='elasticnet', loss='log')
+		clf = SGDClassifier(early_stopping=True, max_iter=5000, penalty='elasticnet', loss='log_loss')
 
 	elif run_modelN == 2:
 		k = 'all'

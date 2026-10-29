@@ -1,9 +1,3 @@
-'''
-
-Author: Daniel M. Low
-License: Apache 2.0
-
-'''
 import argparse
 
 # Run this in terminal to test with toy run
@@ -30,8 +24,12 @@ midpandemic_test = True
 subsample_midpandemic_test = 1100
 pre_or_post = 'pre'
 timestep = None
+import os
 input_dir = './../../datum/reddit/input/reddit_mental_health_dataset/'
+if not os.path.exists(input_dir):
+	input_dir = './input/reddit_mental_health_dataset/'
 output_dir = './../../datum/reddit/output/'
+os.makedirs(output_dir, exist_ok=True)
 
 def str2boolean(s):
 	if s == 'False':
@@ -62,6 +60,8 @@ if args.run_version_number != None:
 
 if args.job_array_task_id != None:
 	subredditN = int(args.job_array_task_id) - 1
+else:
+	subredditN = 0
 
 if args.dim_reduction!=None:
 	dim_reduction = str2boolean(args.dim_reduction)
@@ -105,8 +105,8 @@ if run_version_number in [8]:
 	subreddits = ['addiction', 'EDAnonymous', 'adhd', 'autism', 'alcoholism', 'bipolarreddit', 'bpd','depression', 'anxiety',
 	              'ptsd','healthanxiety', 'lonely', 'schizophrenia', 'socialanxiety', 'suicidewatch']
 	# subreddits = ['depression', 'anxiety', 'suicidewatch']
-	subsample = 2700 # for alcoholism
-	subsample_midpandemic_test = 900
+	subsample = False # use all data (was 150)
+	subsample_midpandemic_test = 100
 
 
 if toy:

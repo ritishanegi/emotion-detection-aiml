@@ -13,6 +13,7 @@ def subsample_df(df, subsample=3000):
 	if type(subsample) == float:
 		# if float (e.g, 0.2) obtain int
 		subsample = int(df.shape[0]*subsample)
+	subsample = min(subsample, df.shape[0])
 	df = df.reset_index(drop=True)
 	df2 = df.loc[np.random.choice(df.index,subsample, replace=False)]
 	return df2
@@ -58,7 +59,7 @@ def binary(input_dir, subreddit, control_subreddits, pre_or_post = 'pre', subsam
 		reddit_data_sr = reddit_data[reddit_data.subreddit == subreddit]
 		# create control df: remove the treatment and/or overlapping subreddits
 		exclude = [subreddit] # Exclude certain the same or overlapping subreddits from control group
-		reddit_data_controls = reddit_data[~reddit_data.subreddit.isin(exclude)]
+		reddit_data_controls = reddit_data[~reddit_data.subreddit.isin(exclude)].copy()
 		new_labels = ['control'] * reddit_data_controls.shape[0]
 		reddit_data_controls['subreddit'] = new_labels
 		print(reddit_data_sr .shape, reddit_data_controls.shape)
